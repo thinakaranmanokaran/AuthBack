@@ -13,57 +13,66 @@ app.use(express.json());
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+	useNewUrlParser: true,
+	useUnifiedTopology: true
 })
-.then(() => console.log("MongoDB connected"))
-.catch(err => console.error(err));
+	.then(() => console.log("MongoDB connected"))
+	.catch(err => console.error(err));
 
 // Model Import
 const User = require('./models/User');
 
 // Routes
 app.post('/api/users', async (req, res) => {
-  const { name, email, password } = req.body;
+	const { name, email, password } = req.body;
 
-  // Validate required fields
-  if (!name || !email || !password) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
+	// Validate required fields
+	if (!name || !email || !password) {
+		return res.status(400).json({ message: "All fields are required" });
+	}
 
-  try {
-    // Create new user
-    const newUser = await User.create({ name, email, password });
-    res.status(201).json(newUser);
-  } catch (err) {
-    if (err.code === 11000) {
-      // Handle duplicate key error
-      return res.status(400).json({ message: "User already exists" });
-    }
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
+	try {
+		// Create new user
+		const newUser = await User.create({ name, email, password });
+		res.status(201).json(newUser);
+	} catch (err) {
+		if (err.code === 11000) {
+			// Handle duplicate key error
+			return res.status(400).json({ message: "User already exists" });
+		}
+		res.status(500).json({ message: "Server error", error: err.message });
+	}
 });
 
 
 app.get('/api/users', async (req, res) => {
-  try {
-    const users = await User.find();
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+	try {
+		const users = await User.find();
+		res.json(users);
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
 });
 
-// Check if user exists by email
 app.get('/api/users/check-email', async (req, res) => {
-  const { email } = req.query;
-  const user = await User.findOne({ email });
-  if (user) {
-    res.status(200).json({ exists: true });
-  } else {
-    res.status(200).json({ exists: false });
-  }
+	const { email } = req.query;
+
+	if (!email) {
+		return res.status(400).json({ message: 'Email is required' });
+	}
+
+	try {
+		const user = await User.findOne({ email });
+		if (user) {
+			return res.status(200).json({ exists: true });
+		} else {
+			return res.status(200).json({ exists: false });
+		}
+	} catch (err) {
+		return res.status(500).json({ message: 'Error checking email', error: err.message });
+	}
 });
 
+// http://localhost:5000/api/users/check-email?email=dheena@mail.com
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
