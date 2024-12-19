@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
+
+
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,11 +41,14 @@ app.post('/api/users', async (req, res) => {
         const newUser = await User.create({ name, email, password: hashedPassword });
 
         // Generate JWT token
-        const token = jwt.sign(
-            { id: newUser._id, email: newUser.email },
-            process.env.JWT_SECRET,
-            { expiresIn: 'never' }  // Or use 'never' for no expiry
-        );
+
+		const jwtSecret = process.env.JWT_SECRET || "defaultSecretKey";
+
+		const token = jwt.sign(
+			{ id: newUser._id, email: newUser.email },
+			jwtSecret,
+			{ expiresIn: 'never' }
+		);
 
         res.status(201).json({ message: "Registration successful", token, user: newUser });
     } catch (err) {
