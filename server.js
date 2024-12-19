@@ -41,24 +41,20 @@ app.post('/api/users', async (req, res) => {
 		const newUser = await User.create({ name, email, password: hashedPassword });
 
 		// Generate JWT token
-
 		const jwt = require('jsonwebtoken');
 
 		// Define your secret key
 		const jwtSecret = process.env.JWT_SECRET || "defaultSecretKey";
 
 		// Create a JWT token
-		// Inside your registration or login logic
 		const token = jwt.sign(
 			{ id: newUser._id, email: newUser.email, name: newUser.name }, // Include name in payload
 			jwtSecret,
 			{ expiresIn: '30d' }
 		);
-		
-		// Return the token
-		res.status(201).json({ token, user: newUser, message: "Registration successful" });
 
-		res.status(201).json({ message: "Registration successful", token, user: newUser });
+		// Return the token and user data
+		res.status(201).json({ token, user: newUser, message: "Registration successful" });
 	} catch (err) {
 		if (err.code === 11000) {
 			return res.status(400).json({ message: "User already exists" });
@@ -66,6 +62,7 @@ app.post('/api/users', async (req, res) => {
 		res.status(500).json({ message: "Server error", error: err.message });
 	}
 });
+
 
 
 
