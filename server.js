@@ -23,26 +23,37 @@ mongoose.connect(process.env.MONGO_URI, {
 const User = require('./models/User');
 
 // Routes
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
+// Register User
 app.post('/api/users', async (req, res) => {
-	const { name, email, password } = req.body;
+    const { name, email, password } = req.body;
 
-	// Validate required fields
-	if (!name || !email || !password) {
-		return res.status(400).json({ message: "All fields are required" });
-	}
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: "All fields are required" });
+    }
 
-	try {
-		// Create new user
-		const newUser = await User.create({ name, email, password });
-		res.status(201).json(newUser);
-	} catch (err) {
-		if (err.code === 11000) {
-			// Handle duplicate key error
-			return res.status(400).json({ message: "User already exists" });
-		}
-		res.status(500).json({ message: "Server error", error: err.message });
-	}
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = await User.create({ name, email, password: hashedPassword });
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: newUser._id, email: newUser.email },
+            process.env.JWT_SECRET,
+            { expiresIn: 'never' }  // Or use 'never' for no expiry
+        );
+
+        res.status(201).json({ message: "Registration successful", token, user: newUser });
+    } catch (err) {
+        if (err.code === 11000) {
+            return res.status(400).json({ message: "User already exists" });
+        }
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
 });
+
 
 
 app.get('/api/users', async (req, res) => {
