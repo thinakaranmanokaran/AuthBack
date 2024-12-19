@@ -30,33 +30,37 @@ const bcrypt = require('bcryptjs');
 
 // Register User
 app.post('/api/users', async (req, res) => {
-    const { name, email, password } = req.body;
+	const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
-        return res.status(400).json({ message: "All fields are required" });
-    }
+	if (!name || !email || !password) {
+		return res.status(400).json({ message: "All fields are required" });
+	}
 
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = await User.create({ name, email, password: hashedPassword });
+	try {
+		const hashedPassword = await bcrypt.hash(password, 10);
+		const newUser = await User.create({ name, email, password: hashedPassword });
 
-        // Generate JWT token
+		// Generate JWT token
 
+		const jwt = require('jsonwebtoken');
+
+		// Define your secret key
 		const jwtSecret = process.env.JWT_SECRET || "defaultSecretKey";
 
+		// Create a JWT token
 		const token = jwt.sign(
-			{ id: newUser._id, email: newUser.email },
-			jwtSecret,
-			{ expiresIn: 'never' }
+			{ id: newUser._id, email: newUser.email }, // Payload
+			jwtSecret, // Secret key
+			{ expiresIn: "30d" } // Expiration option
 		);
 
-        res.status(201).json({ message: "Registration successful", token, user: newUser });
-    } catch (err) {
-        if (err.code === 11000) {
-            return res.status(400).json({ message: "User already exists" });
-        }
-        res.status(500).json({ message: "Server error", error: err.message });
-    }
+		res.status(201).json({ message: "Registration successful", token, user: newUser });
+	} catch (err) {
+		if (err.code === 11000) {
+			return res.status(400).json({ message: "User already exists" });
+		}
+		res.status(500).json({ message: "Server error", error: err.message });
+	}
 });
 
 
