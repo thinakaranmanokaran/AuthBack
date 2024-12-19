@@ -48,11 +48,15 @@ app.post('/api/users', async (req, res) => {
 		const jwtSecret = process.env.JWT_SECRET || "defaultSecretKey";
 
 		// Create a JWT token
+		// Inside your registration or login logic
 		const token = jwt.sign(
-			{ id: newUser._id, email: newUser.email }, // Payload
-			jwtSecret, // Secret key
-			{ expiresIn: "30d" } // Expiration option
+			{ id: newUser._id, email: newUser.email, name: newUser.name }, // Include name in payload
+			jwtSecret,
+			{ expiresIn: '30d' }
 		);
+		
+		// Return the token
+		res.status(201).json({ token, user: newUser, message: "Registration successful" });
 
 		res.status(201).json({ message: "Registration successful", token, user: newUser });
 	} catch (err) {
