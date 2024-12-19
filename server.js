@@ -42,4 +42,16 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Check if user exists by email
+app.get('/api/users/check-email', async (req, res) => {
+  const { email } = req.query;
+  const user = await User.findOne({ email });
+  if (user) {
+    res.status(200).json({ exists: true });
+  } else {
+    res.status(200).json({ exists: false });
+  }
+});
+
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
