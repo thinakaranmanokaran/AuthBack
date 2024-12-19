@@ -39,23 +39,21 @@ app.post('/api/users', async (req, res) => {
 	try {
 		const hashedPassword = await bcrypt.hash(password, 10);
 		const newUser = await User.create({ name, email, password: hashedPassword });
-
-		// Generate JWT token
-		const jwt = require('jsonwebtoken');
-
-		// Define your secret key
-		const jwtSecret = process.env.JWT_SECRET || "defaultSecretKey";
-
-		// Create a JWT token
-		const token = jwt.sign(
-			{ id: newUser._id, email: newUser.email, name: newUser.name }, // Include name in payload
-			jwtSecret,
-			{ expiresIn: '30d' }
+	
+		const jwt = jwt.sign( // Use the created 'jwt' variable
+		  { id: newUser._id, email: newUser.email, name: newUser.name },
+		  process.env.JWT_SECRET,
+		  { expiresIn: '30d' }
 		);
-
-		// Return the token and user data
+	
+		console.log("Generated JWT Token Payload:", {
+		  id: newUser._id,
+		  email: newUser.email,
+		  name: newUser.name
+		});
+	
 		res.status(201).json({ token, user: newUser, message: "Registration successful" });
-	} catch (err) {
+	  } catch (err) {
 		if (err.code === 11000) {
 			return res.status(400).json({ message: "User already exists" });
 		}
