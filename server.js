@@ -30,39 +30,34 @@ const bcrypt = require('bcryptjs');
 
 // Register User
 app.post('/api/users', async (req, res) => {
-	const { name, email, password } = req.body;
+    const { name, email, password } = req.body;
 
-	if (!name || !email || !password) {
-		return res.status(400).json({ message: "All fields are required" });
-	}
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: "All fields are required" });
+    }
 
 	try {
+		const existingUser = await User.findOne({ email });
+		if (existingUser) {
+		  return res.status(400).json({ message: "User already exists" });
+		}
+	  
 		const hashedPassword = await bcrypt.hash(password, 10);
 		const newUser = await User.create({ name, email, password: hashedPassword });
-	
-		const jwt = jwt.sign( // Use the created 'jwt' variable
-		  { id: newUser._id, email: newUser.email, name: newUser.name },
-		  process.env.JWT_SECRET,
-		  { expiresIn: '30d' }
-		);
-	
-		console.log("Generated JWT Token Payload:", {
-		  id: newUser._id,
-		  email: newUser.email,
-		  name: newUser.name
-		});
-	
-		res.status(201).json({ token, user: newUser, message: "Registration successful" });
-	  } catch (err) {
-		if (err.code === 11000) {
-			return res.status(400).json({ message: "User already exists" });
-		}
-		res.status(500).json({ message: "Server error", error: err.message });
-	}
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: newUser._id, email: newUser.email, name: newUser.name },
+            process.env.JWT_SECRET || "defaultSecretKey",
+            { expiresIn: '30d' }
+        );
+
+        res.status(201).json({ token, user: newUser, message: "Registration successful" });
+    } catch (err) {
+        console.error("Server Error:", err);
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
 });
-
-
-
 
 app.get('/api/users', async (req, res) => {
 	try {
