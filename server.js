@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const OTP = require('./models/Verification'); // Import OTP model
 
 
 
@@ -86,6 +89,80 @@ app.get('/api/users/check-email', async (req, res) => {
 		return res.status(500).json({ message: 'Error checking email', error: err.message });
 	}
 });
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail', // Replace with your email provider
+    auth: {
+        user: process.env.EMAIL_USER, // Your email address
+        pass: process.env.EMAIL_PASS  // Your email password
+    }
+});
+
+app.post('/api/auth/send-otp', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Generate a random 6-digit OTP
+        const otp = crypto.randomInt(10000, 99999).toString();
+
+        // Save OTP in the database
+        const otpEntry = new OTP({ userId: user._id, otp });
+        await otpEntry.save();
+
+        // Send the OTP via email
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Your OTP for Verification',
+            text: `Your OTP is ${otp}. It is valid for 5 minutes.`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(200).json({ message: 'OTP sent successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error sending OTP', error: error.message });
+    }
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const validOTP = await OTP.findOne({ userId: user._id, otp });
+        if (!validOTP) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        // OTP is valid; delete it to prevent reuse
+        await OTP.deleteOne({ _id: validOTP._id });
+
+        res.status(200).json({ message: 'OTP verified successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error verifying OTP', error: error.message });
+    }
+});
+
 
 // http://localhost:5000/api/users/check-email?email=dheena@mail.com
 
