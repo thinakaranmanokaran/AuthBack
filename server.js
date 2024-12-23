@@ -32,35 +32,47 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 // Register User
-app.post('/api/users', async (req, res) => {
+app.post('/api/users/register', async (req, res) => {
+    // console.log('Request received at /api/users/register'); // Add this
     const { name, email, password } = req.body;
+    // console.log('Request body:', req.body); // Add this to verify payload
 
     if (!name || !email || !password) {
         return res.status(400).json({ message: "All fields are required" });
     }
 
-	try {
-		const existingUser = await User.findOne({ email });
-		if (existingUser) {
-		  return res.status(400).json({ message: "User already exists" });
-		}
-	  
-		const hashedPassword = await bcrypt.hash(password, 10);
-		const newUser = await User.create({ name, email, password: hashedPassword });
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: "User already exists" });
+        }
 
-        // Generate JWT token
-        const token = jwt.sign(
-            { id: newUser._id, email: newUser.email, name: newUser.name },
-            process.env.JWT_SECRET || "defaultSecretKey",
-            { expiresIn: '30d' }
-        );
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-        res.status(201).json({ token, user: newUser, message: "Registration successful" });
-    } catch (err) {
-        console.error("Server Error:", err);
-        res.status(500).json({ message: "Server error", error: err.message });
+        // Generate a random OTP
+        const otp = crypto.randomInt(10000, 99999).toString();
+
+        // Save OTP and user data in the OTP collection
+        const otpEntry = new OTP({ email, name, password: hashedPassword, otp });
+        await otpEntry.save();
+
+        // Send the OTP via email
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Your OTP for Verification',
+            text: `Your OTP is ${otp}. It is valid for 5 minutes.`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(200).json({ message: 'OTP sent successfully. Verify to complete registration.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error during registration', error: error.message });
     }
 });
+
 
 app.get('/api/users', async (req, res) => {
 	try {
@@ -98,42 +110,42 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-app.post('/api/auth/send-otp', async (req, res) => {
-    const { email } = req.body;
+// app.post('/api/auth/send-otp', async (req, res) => {
+//     const { email } = req.body;
 
-    if (!email) {
-        return res.status(400).json({ message: 'Email is required' });
-    }
+//     if (!email) {
+//         return res.status(400).json({ message: 'Email is required' });
+//     }
 
-    try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+//     try {
+//         const user = await User.findOne({ email });
+//         if (!user) {
+//             return res.status(404).json({ message: 'User not found' });
+//         }
 
-        // Generate a random 6-digit OTP
-        const otp = crypto.randomInt(10000, 99999).toString();
+//         // Generate a random 6-digit OTP
+//         const otp = crypto.randomInt(10000, 99999).toString();
 
-        // Save OTP in the database
-        const otpEntry = new OTP({ userId: user._id, otp });
-        await otpEntry.save();
+//         // Save OTP in the database
+//         const otpEntry = new OTP({ userId: user._id, otp });
+//         await otpEntry.save();
 
-        // Send the OTP via email
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Your OTP for Verification',
-            text: `Your OTP is ${otp}. It is valid for 5 minutes.`
-        };
+//         // Send the OTP via email
+//         const mailOptions = {
+//             from: process.env.EMAIL_USER,
+//             to: email,
+//             subject: 'Your OTP for Verification',
+//             text: `Your OTP is ${otp}. It is valid for 5 minutes.`
+//         };
 
-        await transporter.sendMail(mailOptions);
+//         await transporter.sendMail(mailOptions);
 
-        res.status(200).json({ message: 'OTP sent successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error sending OTP', error: error.message });
-    }
-});
+//         res.status(200).json({ message: 'OTP sent successfully' });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ message: 'Error sending OTP', error: error.message });
+//     }
+// });
 
 app.post('/api/auth/verify-otp', async (req, res) => {
     const { email, otp } = req.body;
@@ -143,25 +155,36 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const validOTP = await OTP.findOne({ userId: user._id, otp });
-        if (!validOTP) {
+        // Check if OTP is valid
+        const otpEntry = await OTP.findOne({ email, otp });
+        if (!otpEntry) {
             return res.status(400).json({ message: 'Invalid or expired OTP' });
         }
 
-        // OTP is valid; delete it to prevent reuse
-        await OTP.deleteOne({ _id: validOTP._id });
+        // Create the user in the database
+        const newUser = await User.create({
+            name: otpEntry.name,
+            email: otpEntry.email,
+            password: otpEntry.password
+        });
 
-        res.status(200).json({ message: 'OTP verified successfully' });
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: newUser._id, email: newUser.email, name: newUser.name },
+            process.env.JWT_SECRET || "defaultSecretKey",
+            { expiresIn: '30d' }
+        );
+
+        // Delete the OTP entry
+        await OTP.deleteOne({ _id: otpEntry._id });
+
+        res.status(201).json({ token, user: newUser, message: 'Registration successful' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error verifying OTP', error: error.message });
     }
 });
+
 
 
 // http://localhost:5000/api/users/check-email?email=dheena@mail.com
